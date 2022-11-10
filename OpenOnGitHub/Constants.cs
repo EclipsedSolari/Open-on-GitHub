@@ -10,16 +10,15 @@ namespace OpenOnGitHub
         public static readonly Guid guidOpenOnGitHubCmdSet = new Guid(guidOpenOnGitHubCmdSetString);
     };
 
-    static class PackageCommanddIDs
+    static class PackageCommandIDs
     {
-        public const uint OpenMaster = 0x100;
-        public const uint OpenBranch = 0x200;
-        public const uint OpenRevision = 0x300;
-        public const uint OpenRevisionFull = 0x400;
+        public const int OpenOnGitHub = 0x100;
+        public const int CopyLinkToClipboard = 0x200;
+        public const int OpenGitHubBlame = 0x300;
     };
 
     static class PackageVersion
     {
-        public const string Version = "1.3"; 
+        public const string Version = "1.4"; 
     }
 }

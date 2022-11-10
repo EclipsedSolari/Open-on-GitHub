@@ -8,7 +8,7 @@
             <Menu guid="guidOpenOnGitHubCmdSet" id="SubMenu" priority="0x1000" type="Menu">
                 <Parent guid="guidOpenOnGitHubCmdSet" id="ContextMenuGroup" />
                 <Strings>
-                    <ButtonText>Open on GitHub</ButtonText>
+                    <ButtonText>GitHub Tools</ButtonText>
                 </Strings>
             </Menu>
         </Menus>
@@ -21,36 +21,25 @@
         </Groups>
 
         <Buttons>
-            <Button guid="guidOpenOnGitHubCmdSet" id="OpenMaster" priority="0x0100" type="Button">
+            <Button guid="guidOpenOnGitHubCmdSet" id="OpenOnGitHub" priority="0x0100" type="Button">
                 <Parent guid="guidOpenOnGitHubCmdSet" id="SubMenuGroup" />
                 <Strings>
-                    <ButtonText>master</ButtonText>
-                    <CommandName>master</CommandName>
+                    <ButtonText>Open on GitHub</ButtonText>
+                    <CommandName>OpenOnGitHub</CommandName>
                 </Strings>
             </Button>
-            <Button guid="guidOpenOnGitHubCmdSet" id="OpenBranch" priority="0x0200" type="Button">
+            <Button guid="guidOpenOnGitHubCmdSet" id="CopyLinkToClipboard" priority="0x0200" type="Button">
                 <Parent guid="guidOpenOnGitHubCmdSet" id="SubMenuGroup" />
-                <CommandFlag>TextChanges</CommandFlag>
-                <CommandFlag>DynamicVisibility</CommandFlag>
                 <Strings>
-                    <ButtonText>branch</ButtonText>
-                    <CommandName>branch</CommandName>
+                    <ButtonText>Copy link to clipboard</ButtonText>
+                    <CommandName>CopyLinkToClipboard</CommandName>
                 </Strings>
             </Button>
-            <Button guid="guidOpenOnGitHubCmdSet" id="OpenRevision" priority="0x0300" type="Button">
+            <Button guid="guidOpenOnGitHubCmdSet" id="OpenBlame" priority="0x0300" type="Button">
                 <Parent guid="guidOpenOnGitHubCmdSet" id="SubMenuGroup" />
-                <CommandFlag>TextChanges</CommandFlag>
                 <Strings>
-                    <ButtonText>revision</ButtonText>
-                    <CommandName>revision</CommandName>
-                </Strings>
-            </Button>
-            <Button guid="guidOpenOnGitHubCmdSet" id="OpenRevisionFull" priority="0x0400" type="Button">
-                <Parent guid="guidOpenOnGitHubCmdSet" id="SubMenuGroup" />
-                <CommandFlag>TextChanges</CommandFlag>
-                <Strings>
-                    <ButtonText>revisionFull</ButtonText>
-                    <CommandName>revisionFull</CommandName>
+                    <ButtonText>Blame</ButtonText>
+                    <CommandName>OpenBlame</CommandName>
                 </Strings>
             </Button>
         </Buttons>
@@ -113,10 +102,9 @@
             <IDSymbol name="SubMenuGroup" value="0x1030" />
             <IDSymbol name="SubMenu" value="0x1040" />
             <!-- Command -->
-            <IDSymbol name="OpenMaster" value="0x0100" />
-            <IDSymbol name="OpenBranch" value="0x0200" />
-            <IDSymbol name="OpenRevision" value="0x0300" />
-            <IDSymbol name="OpenRevisionFull" value="0x0400" />
+            <IDSymbol name="OpenOnGitHub" value="0x0100" />
+            <IDSymbol name="CopyLinkToClipboard" value="0x0200" />
+            <IDSymbol name="OpenBlame" value="0x0300" />
         </GuidSymbol>
 
         <!-- List for various editor types -->

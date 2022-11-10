@@ -2,13 +2,12 @@
 using EnvDTE80;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.ComponentModel.Design;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace OpenOnGitHub
 {
@@ -27,6 +26,7 @@ namespace OpenOnGitHub
             get
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
+
                 if (_dte == null)
                 {
                     _dte = ServiceProvider.GlobalProvider.GetService(typeof(DTE)) as DTE2;
@@ -40,134 +40,123 @@ namespace OpenOnGitHub
         {
             await base.InitializeAsync(cancellationToken, progress);
 
-            // Switches to the UI thread in order to consume some services used in command initialization
+            //Switches to the UI thread in order to consume some services used in command initialization
             await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
-            if (await GetServiceAsync(typeof(IMenuCommandService)) is OleMenuCommandService mcs)
+            //link menu items to their commands. No need to link them to the parent menu or to set their text - that's done via OpenOnGitHub.vsct
+            if (await GetServiceAsync(typeof(IMenuCommandService)) is OleMenuCommandService menuCommandService)
             {
-                foreach (var item in new[]
-                {
-                    PackageCommanddIDs.OpenMaster,
-                    PackageCommanddIDs.OpenBranch,
-                    PackageCommanddIDs.OpenRevision,
-                    PackageCommanddIDs.OpenRevisionFull
-                })
-                {
-                    var menuCommandID = new CommandID(PackageGuids.guidOpenOnGitHubCmdSet, (int)item);
-                    var menuItem = new OleMenuCommand(ExecuteCommand, menuCommandID);
-                    menuItem.BeforeQueryStatus += MenuItem_BeforeQueryStatus;
-                    mcs.AddCommand(menuItem);
-                }
+                CommandID openOnGithubCommandId = new CommandID(PackageGuids.guidOpenOnGitHubCmdSet, PackageCommandIDs.OpenOnGitHub);
+                OleMenuCommand openOnGithubMenuItem = new OleMenuCommand(OpenOnGitHub, openOnGithubCommandId);
+                openOnGithubMenuItem.BeforeQueryStatus += EnableDisableMenuItems;
+                menuCommandService.AddCommand(openOnGithubMenuItem);
+
+                CommandID copyToClipboardCommandId = new CommandID(PackageGuids.guidOpenOnGitHubCmdSet, PackageCommandIDs.CopyLinkToClipboard);
+                OleMenuCommand copyToClipboardMenuItem = new OleMenuCommand(CopyLinkToClipboard, copyToClipboardCommandId);
+                openOnGithubMenuItem.BeforeQueryStatus += EnableDisableMenuItems;
+                menuCommandService.AddCommand(copyToClipboardMenuItem);
+
+                CommandID openGithubBlameCommandId = new CommandID(PackageGuids.guidOpenOnGitHubCmdSet, PackageCommandIDs.OpenGitHubBlame);
+                OleMenuCommand openGithubBlameMenuItem = new OleMenuCommand(OpenBlame, openGithubBlameCommandId);
+                openOnGithubMenuItem.BeforeQueryStatus += EnableDisableMenuItems;
+                menuCommandService.AddCommand(openGithubBlameMenuItem);
             }
         }
 
-        private void MenuItem_BeforeQueryStatus(object sender, EventArgs e)
+        private void EnableDisableMenuItems(object sender, EventArgs e)
         {
-            var command = (OleMenuCommand)sender;
-            try
-            {
-                // TODO:is should avoid create GitAnalysis every call?
-                ThreadHelper.ThrowIfNotOnUIThread();
-                using (var git = new GitAnalysis(GetActiveFilePath()))
-                {
-                    if (!git.IsDiscoveredGitRepository)
-                    {
-                        command.Enabled = false;
-                        return;
-                    }
+            OleMenuCommand menuItem = (OleMenuCommand)sender;
 
-                    var type = ToGitHubUrlType(command.CommandID.ID);
-                    var targetPath = git.GetGitHubTargetPath(type);
-                    if (type == GitHubUrlType.CurrentBranch && targetPath == "master")
-                    {
-                        command.Visible = false;
-                    }
-                    else
-                    {
-                        command.Text = git.GetGitHubTargetDescription(type);
-                        command.Enabled = true;
-                    }
-                }
-            }
-            catch (Exception ex)
+            //if this solution doesn't have GitHub enabled, don't create GitHub menu items
+            using (GitHubRepository githubRepository = new GitHubRepository(GetActiveFilePath()))
             {
-                var exstr = ex.ToString();
-                Debug.Write(exstr);
-                command.Text = "error:" + ex.GetType().Name;
-                command.Enabled = false;
+                if (!githubRepository.IsDiscoveredGitRepository)
+                {
+                    menuItem.Enabled = false;
+                }
             }
         }
 
-        private void ExecuteCommand(object sender, EventArgs e)
+        private void OpenOnGitHub(object sender, EventArgs e)
         {
-            var command = (OleMenuCommand)sender;
-            try
+            using (GitHubRepository githubRepository = new GitHubRepository(GetActiveFilePath()))
             {
-                ThreadHelper.ThrowIfNotOnUIThread();
-                using (var git = new GitAnalysis(GetActiveFilePath()))
-                {
-                    if (!git.IsDiscoveredGitRepository)
-                    {
-                        return;
-                    }
-                    var selectionLineRange = GetSelectionLineRange();
-                    var type = ToGitHubUrlType(command.CommandID.ID);
-                    var gitHubUrl = git.BuildGitHubUrl(type, selectionLineRange);
-                    System.Diagnostics.Process.Start(gitHubUrl); // open browser
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.Write(ex.ToString());
+                EditorSelection editorSelection = GetEditorSelection();
+                string fileUrl = githubRepository.GetFileUrl(editorSelection);
+                System.Diagnostics.Process.Start(fileUrl); //open browser
             }
         }
 
-        string GetActiveFilePath()
+        private void CopyLinkToClipboard(object sender, EventArgs e)
+        {
+            using (GitHubRepository githubRepository = new GitHubRepository(GetActiveFilePath()))
+            {
+                EditorSelection editorSelection = GetEditorSelection();
+                string fileUrl = githubRepository.GetFileUrl(editorSelection);
+                Clipboard.SetText(fileUrl);
+            }
+        }
+
+        private void OpenBlame(object sender, EventArgs e)
+        {
+            using (GitHubRepository githubRepository = new GitHubRepository(GetActiveFilePath()))
+            {
+                EditorSelection editorSelection = GetEditorSelection();
+                string fileUrl = githubRepository.GetBlameUrl(editorSelection);
+                System.Diagnostics.Process.Start(fileUrl); //open browser
+            }
+        }
+
+        private string GetActiveFilePath()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             // sometimes, DTE.ActiveDocument.Path is ToLower but GitHub can't open lower path.
             // fix proper-casing | http://stackoverflow.com/questions/325931/getting-actual-file-name-with-proper-casing-on-windows-with-net
-            var path = GetExactPathName(DTE.ActiveDocument.Path + DTE.ActiveDocument.Name);
-            return path;
+            string activeFilePath = GetExactPathName($"{DTE.ActiveDocument.Path}{DTE.ActiveDocument.Name}");
+            return activeFilePath;
         }
 
-        static string GetExactPathName(string pathName)
+        private string GetExactPathName(string pathName)
         {
             if (!(File.Exists(pathName) || Directory.Exists(pathName)))
-                return pathName;
-
-            var di = new DirectoryInfo(pathName);
-
-            if (di.Parent != null)
             {
-                return Path.Combine(
-                    GetExactPathName(di.Parent.FullName),
-                    di.Parent.GetFileSystemInfos(di.Name)[0].Name);
+                return pathName;
+            }
+
+            DirectoryInfo directoryInfo = new DirectoryInfo(pathName);
+
+            if (directoryInfo.Parent == null)
+            {
+                return directoryInfo.Name.ToUpper();
             }
             else
             {
-                return di.Name.ToUpper();
+                string directoryName = GetExactPathName(directoryInfo.Parent.FullName);
+                FileSystemInfo[] fileSystemInfos = directoryInfo.Parent.GetFileSystemInfos(directoryInfo.Name);
+                FileSystemInfo fileSystemInfo = fileSystemInfos[0];
+                string fileName = fileSystemInfo.Name;
+
+                string exactPathName = Path.Combine(directoryName, fileName);
+                return exactPathName;
             }
         }
 
-        Tuple<int, int> GetSelectionLineRange()
+        private EditorSelection GetEditorSelection()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if (!(DTE.ActiveDocument.Selection is TextSelection selection) || selection.IsEmpty)
+
+            if (!(DTE.ActiveDocument.Selection is TextSelection selection))
             {
                 return null;
             }
 
-            return Tuple.Create(selection.TopPoint.Line, selection.BottomPoint.Line);
-        }
+            EditorSelection editorSelection = new EditorSelection()
+            {
+                StartLine = selection.TopPoint?.Line,
+                EndLine = selection.BottomPoint?.Line
+            };
 
-        static GitHubUrlType ToGitHubUrlType(int commandId)
-        {
-            if (commandId == PackageCommanddIDs.OpenMaster) return GitHubUrlType.Master;
-            if (commandId == PackageCommanddIDs.OpenBranch) return GitHubUrlType.CurrentBranch;
-            if (commandId == PackageCommanddIDs.OpenRevision) return GitHubUrlType.CurrentRevision;
-            if (commandId == PackageCommanddIDs.OpenRevisionFull) return GitHubUrlType.CurrentRevisionFull;
-            else return GitHubUrlType.Master;
+            return editorSelection;
         }
     }
 }
